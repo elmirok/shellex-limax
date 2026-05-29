@@ -1,0 +1,26 @@
+{
+  "manifest": {
+    "id": "system.limax.local",
+    "name": "Limax",
+    "version": "1.0.0",
+    "author": "Shellex",
+    "description": "The local-first Shellex package manager for vault apps.",
+    "repository": "https://github.com/elmirok/shellex-limax",
+    "type": "system-app",
+    "entry": "README.md",
+    "runtime": "host",
+    "permissions": [
+      "apps:list",
+      "apps:install",
+      "apps:remove"
+    ],
+    "window": {
+      "width": 820,
+      "height": 620,
+      "resizable": true
+    }
+  },
+  "files": {
+    "README.md": "# Limax\n\nLimax is the Shellex OS package manager app. The Shell `pack` command is its command-line front-end.\n\nCurrent MVP: local `.sapp` install, installed package listing, package info and package removal.\n"
+  }
+}
