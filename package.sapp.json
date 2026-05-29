@@ -21,6 +21,6 @@
     }
   },
   "files": {
-    "README.md": "# Limax\n\nLimax is the Shellex OS package manager app. The Shell `pack` command is its command-line front-end.\n\nCurrent MVP: local `.sapp` install, installed package listing, package info and package removal.\n"
+    "README.md": "# Limax\n\nLimax is the Shellex OS package manager app and command.\n\nCurrent MVP: local `.sapp` install, installed package listing, package info, package removal, source repository records and repo update checks.\n\nRun `limax help` in Shell for usage."
   }
 }
