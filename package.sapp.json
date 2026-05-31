@@ -2,7 +2,7 @@
   "manifest": {
     "id": "system.limax.local",
     "name": "Limax",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "author": "Shellex",
     "description": "The local-first Shellex package manager for vault apps, repo registries and updates.",
     "repository": "https://github.com/elmirok/shellex-limax",
@@ -21,6 +21,6 @@
     }
   },
   "files": {
-    "README.md": "# Limax\n\nLimax is the Shellex OS package manager app and command.\n\nCurrent MVP: local `.sapp` install, repository registry sync, remote app install from configured repos, installed package listing, package info, package removal, source repository records and repo update checks.\n\nUseful commands:\n\n```txt\nlimax repo sync\nlimax repos\nlimax install W3\nlimax update\nlimax update -all\n```\n\nRun `limax help` in Shell for usage."
+    "README.md": "# Limax\n\nLimax is the Shellex OS package manager app and command.\n\nCurrent MVP: local `.sapp` install, repository registry sync, remote app install from configured repos, installed package listing, package info, package removal, source repository records and repo update checks.\n\nVersion 1.0.2 improves the Limax window layout in Shellex OS with separate Installed, Sources and Updates tabs plus a toggleable update log panel.\n\nUseful commands:\n\n```txt\nlimax repo sync\nlimax repos\nlimax install W3\nlimax update\nlimax update -all\n```\n\nRun `limax help` in Shell for usage."
   }
 }
