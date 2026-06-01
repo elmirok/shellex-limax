@@ -2,9 +2,9 @@
   "manifest": {
     "id": "system.limax.local",
     "name": "Limax",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "author": "Shellex",
-    "description": "The local-first Shellex package manager for vault apps, repo registries and updates.",
+    "description": "The local-first Shellex package manager for vault apps, repo registries, package trust records and updates.",
     "repository": "https://github.com/elmirok/shellex-limax",
     "type": "system-app",
     "entry": "README.md",
@@ -21,6 +21,6 @@
     }
   },
   "files": {
-    "README.md": "# Limax\n\nLimax is the Shellex OS package manager app and command.\n\nCurrent MVP: local `.sapp` install, repository registry sync, remote app install from configured repos, installed package listing, package info, package removal, source repository records and repo update checks.\n\nVersion 1.0.2 improves the Limax window layout in Shellex OS with separate Installed, Sources and Updates tabs plus a toggleable update log panel.\n\nUseful commands:\n\n```txt\nlimax repo sync\nlimax repos\nlimax install W3\nlimax update\nlimax update -all\n```\n\nRun `limax help` in Shell for usage.\n\n## Development\n\n```txt\nnpm run build\nnpm run check\nnpm test\n```\n\nRelease flow:\n\n1. Update `manifest.json`.\n2. Update this README.\n3. Run `npm run build`.\n4. Run `npm run check`.\n5. Commit the generated `package.sapp.json` with the source changes.\n\n## Shellex package\n\n- App id: `system.limax.local`\n- Version: `1.0.2`\n- Runtime: `host`\n- Type: `system-app`\n"
+    "README.md": "# Limax\n\nLimax is the Shellex OS package manager app and command.\n\nCurrent MVP: local `.sapp` install, repository registry sync, remote app install from configured repos, installed package listing, package info, package removal, source repository records, package SHA-256 trust records and repo update checks.\n\nVersion 1.0.3 documents the Shellex 0.1.8 package trust model. Shellex records package source, package URL and SHA-256 in `/system/limax/lock.json` inside the encrypted vault.\n\nUseful commands:\n\n```txt\nlimax repo sync\nlimax repos\nlimax install W3\nlimax lock\nlimax update\nlimax update -all\n```\n\nRun `limax help` in Shell for usage.\n\n## Development\n\n```txt\nnpm run build\nnpm run check\nnpm test\n```\n\nRelease flow:\n\n1. Update `manifest.json`.\n2. Update this README.\n3. Run `npm run build`.\n4. Run `npm run check`.\n5. Commit the generated `package.sapp.json` with the source changes.\n6. Update `shellex-repos/repos.json` with the new package SHA-256.\n\n## Shellex package\n\n- App id: `system.limax.local`\n- Version: `1.0.3`\n- Runtime: `host`\n- Type: `system-app`\n"
   }
 }
