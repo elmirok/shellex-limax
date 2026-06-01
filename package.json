@@ -1,0 +1,10 @@
+{
+  "name": "shellex-limax",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-package.mjs",
+    "check": "node scripts/check-package.mjs",
+    "test": "npm run check"
+  }
+}

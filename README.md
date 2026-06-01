@@ -18,6 +18,22 @@ limax update -all
 
 Run `limax help` in Shell for usage.
 
+## Development
+
+```txt
+npm run build
+npm run check
+npm test
+```
+
+Release flow:
+
+1. Update `manifest.json`.
+2. Update this README.
+3. Run `npm run build`.
+4. Run `npm run check`.
+5. Commit the generated `package.sapp.json` with the source changes.
+
 ## Shellex package
 
 - App id: `system.limax.local`
