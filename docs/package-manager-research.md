@@ -22,6 +22,8 @@ The most important architectural move is to split Limax into four layers:
 3. Trust layer: verify hash/signature/provenance before install.
 4. Transaction layer: plan, preview, apply, record and undo vault changes.
 
+2026-06-04 implementation update: Shellex OS now has the first transaction-safe rollback path. `limax undo [latest|transaction-id]` restores the rollback snapshot recorded for a package transaction, rebuilds the live installed-app registry from `/apps/*.sapp.json`, prunes stale app windows and records a new undo transaction. Limax also has an initial signed trust path: registry indexes and package records can carry ECDSA-P256-SHA256 signature metadata, package plans can report `signed`, lock/transaction records preserve publisher key identity, signed registry sync pins publisher keys in `/system/limax/trust-pins.json`, and policy can require signed packages or pinned publisher keys. Repo records now support `channel`, `pinnedVersion` and `pinnedSha256`, with `limax pin` for vault-local channel/version/hash holds.
+
 ## Research Comparison
 
 | System | What users like | What users complain about | Lesson for Limax |
@@ -35,6 +37,16 @@ The most important architectural move is to split Limax into four layers:
 | Nix / Guix | Reproducibility, immutable store concepts, per-user profiles, atomic upgrades and rollback. | Steep learning curve, storage overhead, language/config complexity. | Use the rollback idea, not the complexity: vault snapshot before mutation, transaction log after mutation. |
 | Homebrew / MacPorts | Homebrew wins on popularity, discovery and convenience; MacPorts wins praise for technical isolation and `/opt/local` discipline. | Homebrew has recurring complaints around update slowness, downgrade/hermetic difficulty and path/global-state surprises. | Make publishing easy, but installs must be explicit, vault-local and provenance-recorded. |
 | Flatpak / Snap | App sandboxing, permission surfaces, channels/tracks and app-focused distribution. | Permission UX can be confusing; automatic updates need user control. | Add channels and permission diffs, but always show the install/update plan before changing the vault. |
+
+Current-source notes:
+
+- Debian APT's security model centers on signed repository release metadata and hash chains from repository metadata to packages. Limax now starts that direction with optional signed registry indexes, optional signed package metadata, and SHA-256 provenance for every installed package.
+- DNF exposes transaction history, `history undo` and `history rollback`. Limax should make undo a first-class command rather than a manual snapshot restore.
+- Nix generations make rollback simple, but users complain about learning curve and storage complexity. Limax should copy the rollback ergonomics, not the language/store complexity.
+- Arch/pacman shows that speed and simplicity matter, but package signing and keyring UX must be visible enough for humans to recover from trust failures.
+- FreeBSD/OpenBSD separate binary packages from ports/source builds. Limax should keep `.sapp` as the install artifact and avoid running arbitrary source builds in the vault.
+- Homebrew wins discoverability and publishing friendliness; MacPorts gets technical praise for isolation and controlled dependency trees. Limax should be easy like Homebrew but vault-local and isolated like MacPorts.
+- Community review themes across Reddit/Fedora/Mac/package-manager threads: people love rollback, speed, simple names and discoverability; they complain about opaque trust errors, slow metadata refresh, OS upgrade breakage and global path conflicts.
 
 ## User Pain Points to Design Against
 
@@ -61,18 +73,25 @@ Current strengths:
 - Package lock records include source type, repo name, repo URL, package URL and SHA-256.
 - The updater already detects same-version hash changes and avoids auto-applying them.
 - The Limax window already separates Installed, Sources and Updates, with logs.
-- `npm run check` in `shellex-os` passes with `tsc --noEmit`.
+- Package validation now lives in a focused `src/limax/package-validator.ts` module and enforces manifest shape, id/version patterns, permission syntax, safe file paths and package size limits.
+- Package planning now lives in a focused `src/limax/package-plan.ts` module and powers read-only `limax plan <repo-or-app-name>` previews.
+- Repo install and update apply paths now consume the same focused plan object that `limax plan` previews.
+- Remove planning is available through `limax plan remove <app-id>`, and uninstall applies the same focused remove plan object.
+- Package diagnostics now live in `src/limax/doctor.ts` and are exposed through `limax doctor` with repair suggestions and `--json` output.
+- Package policy now lives at `/system/limax/policy.json` and is exposed through `limax policy`; it blocks same-version hash changes and downgrades by default, and warns on permission expansion or host-runtime repo packages.
+- Package and registry signature verification now live in `src/limax/trust.ts`; registry records can provide `publisherKeyId`, `publisherPublicKeyJwk`, `signatureAlgorithm`, `registrySignature` and per-package `packageSignature`.
+- Lock, transaction, update and plan outputs now preserve publisher key identity when signed package metadata is present, and `limax trust` reports publisher keys pinned from signed registry syncs.
+- Repo channel and pin metadata now flows through registry sync, search, plan, update checks, lock records, transactions and `/system/apps/registry.json`.
+- `limax pin` lets vault owners set channel, version and SHA-256 pins locally; `limax update -all` reports pinned packages and does not apply them.
+- Repo update checks use controlled concurrency.
+- Shell exposes `limax search`, `limax plan`, `limax history` and `limax undo`.
+- `npm test` in `shellex-os` now guards Limax architecture invariants.
 
 Current architectural gaps:
 
-- Package validation is still minimal: id/name/entry/runtime checks exist, but package file paths, version syntax, permission syntax, manifest shape and size limits need stricter validation.
-- Repo checks are sequential, so many repos make Limax feel slower than necessary.
-- No first-class `limax search` command or indexed catalog view.
-- No explicit install/update plan object shown before repo installs.
-- No transaction history command such as `limax history` or `limax undo`.
-- No signed package support yet; SHA-256 lock records are provenance, not publisher identity.
-- No channels/tracks such as stable, beta or pinned.
-- Browser-only private repo failures are handled, but they should become actionable diagnostics.
+- Signed registry and signed package support have initial verifiers and policy hooks, but no publisher key management UI or explicit trusted-key onboarding flow yet.
+- Channels and pins exist as repo metadata and vault-local holds; richer channel UX and signed channel tooling are still needed.
+- Browser-only private repo failures are handled, but they should become more actionable in update/install output.
 - Dependency metadata is not modeled yet.
 
 ## Target Architecture
@@ -132,7 +151,7 @@ Trust should be visible as a state, not hidden in implementation:
 - `recorded`: first install or no expected hash.
 - `verified`: hash matches an expected hash from the repo/index.
 - `changed`: same version, different hash than installed lock record.
-- `signed`: future package signature verified against a trusted publisher key.
+- `signed`: package signature verified against publisher key metadata from the repository record.
 - `blocked`: trust policy refused install/update.
 
 Limax should never auto-apply `changed` or `blocked` packages.
@@ -174,9 +193,10 @@ limax update -all
 limax history
 limax undo <transaction-id>
 limax doctor
+limax trust
 ```
 
-`undo` should restore the snapshot associated with the transaction when available.
+`undo` restores the snapshot associated with the transaction when available and then reconciles live runtime state from the restored vault files.
 
 ## Phased Refactor Plan
 
@@ -193,16 +213,18 @@ Status: in progress in this repository.
 
 Target repo: `shellex-os`.
 
-- Extract package validation into a focused module.
-- Enforce safe paths, file count, package size, manifest id/version format and permission format.
-- Add unit-like validation fixtures or TypeScript checks if the project adds a test runner.
-- Make validation errors readable from Shell and Limax UI.
+Status: complete for the current validator scope in Shellex OS.
+
+- Safe paths, file count, package size, manifest id/version format and permission format are enforced.
+- Validation errors are surfaced through Shell/Limax install paths.
+- Validation lives in `src/limax/package-validator.ts`, guarded by the Limax architecture test and TypeScript.
+- Remaining work: add direct behavior fixtures for accepted/rejected packages once Shellex OS has a richer test runner.
 
 ### Phase 3: Fast Catalog and Search
 
 Target repo: `shellex-os` plus `shellex-repos`.
 
-- Status: started with offline `limax search [query]` over known repo records and installed apps.
+- Status: started with offline `limax search [query]` over known repo records and installed apps, plus concurrent repo update checks.
 - Add `limax search [query]`.
 - Add cached registry/index reads.
 - Parallelize package checks with a small concurrency limit.
@@ -212,19 +234,20 @@ Target repo: `shellex-os` plus `shellex-repos`.
 
 Target repo: `shellex-os`.
 
-- Status: started with `/system/limax/transactions.json`, `limax history` and pre-operation rollback snapshot ids.
-- Add plan generation before install/update/remove.
-- Add `/system/limax/transactions.json`.
-- Create a vault snapshot before applying package transactions.
-- Add `limax history` and `limax undo <id>`.
+- Status: started with `src/limax/package-plan.ts`, `limax plan`, `/system/limax/transactions.json`, `limax history`, `limax undo` and pre-operation rollback snapshot ids.
+- Repo install/update apply paths consume the same plan object shown by `limax plan`.
+- Remove planning also shows file, permission and rollback impact before uninstall.
+- Keep improving undo with richer transaction previews and policy-aware permission diffs.
 
 ### Phase 5: Trust Policy
 
 Target repo: `shellex-os` plus app repos.
 
-- Add optional publisher keys to registry metadata.
-- Add package signatures or signed index records.
-- Add trust policy settings in `/system/limax/policy.json`.
+- Status: started with `/system/limax/policy.json`, `limax policy`, `limax trust`, apply-time policy checks, optional signed package metadata, signed registry indexes, publisher trust pins, `requireSignedRepoPackages` and `requireTrustedPublisherKeys`.
+- Status: channel/version/hash pins are started with repo metadata, `limax pin`, update holds, and apply-time pin enforcement through policy.
+- Add publisher key onboarding and trust-pin review/rotation UI.
+- Add signed index tooling so app repos can generate registry signatures consistently.
+- Add explicit user overrides for blocked policy decisions.
 - Block changed same-version packages unless explicitly trusted.
 
 ### Phase 6: Developer Experience
@@ -232,32 +255,40 @@ Target repo: `shellex-os` plus app repos.
 Target repos: app package repos and Shellex DevHub.
 
 - Standardize `npm run build`, `npm run check`, `npm test` for every Shellex app package repo.
-- Add package diagnostics: `limax doctor`.
+- Expand package diagnostics with future automated repair actions after user confirmation.
 - Add publish checklist and package lint output in DevHub.
 
 ## Immediate Next Code Targets
 
 The highest-leverage Shellex core changes are:
 
-1. Harden `validateAppPackage`.
-2. Add a transaction plan type and return it from repo install/update paths.
-3. Add `limax search`.
-4. Parallelize update checks with controlled concurrency.
-5. Add `limax history` backed by `/system/limax/transactions.json`.
+1. Add publisher key onboarding, trust-pin review and rotation UI.
+2. Add signed index generation tooling for app repos.
+3. Add confirmed repair actions for selected `limax doctor` findings.
+4. Add direct behavior fixtures for validator, planner and trust modules.
+5. Add policy-aware permission prompts for high-risk package changes.
 
 These changes preserve the existing Shellex boundary while moving Limax toward a serious package manager architecture.
 
 ## Sources
 
 - Debian package management: https://wiki.debian.org/PackageManagement
+- Debian SecureApt: https://wiki.debian.org/SecureApt
 - Debian Reference, package management: https://www.debian.org/doc/manuals/debian-reference/ch02
-- Fedora DNF documentation: https://docs.fedoraproject.org/
+- DNF command reference: https://dnf.readthedocs.io/en/stable/command_ref.html
 - Arch pacman documentation: https://wiki.archlinux.org/title/pacman
+- Arch pacman package signing: https://wiki.archlinux.org/title/Pacman/Package_signing
 - FreeBSD packages and ports: https://docs.freebsd.org/en/books/handbook/ports/
 - OpenBSD package management FAQ: https://www.openbsd.org/faq/faq15.html
 - pkgsrc guide: https://www.netbsd.org/docs/pkgsrc/pkgsrc.html
 - Homebrew manual: https://docs.brew.sh/Manpage
+- Homebrew taps: https://docs.brew.sh/Taps
+- Homebrew bottles: https://docs.brew.sh/Bottles
+- MacPorts guide: https://guide.macports.org/
 - Nix profiles and generations: https://nix.dev/manual/nix/latest/package-management/profiles.html
+- Nix rollback: https://nix.dev/manual/nix/2.30/command-ref/nix-env/rollback.html
+- Community review sample, Homebrew vs MacPorts: https://www.reddit.com/r/MacOS/comments/17e85da/homebrew_vs_macports/
+- Community review sample, DNF undo/rollback reliability: https://www.reddit.com/r/Fedora/comments/bruaob/how_much_reliable_are_dnf_commands_like_history/
 - GNU Guix package description: https://packages.guix.gnu.org/packages/guix/
 - Flatpak sandbox permissions: https://docs.flatpak.org/en/latest/sandbox-permissions.html
 - Snap channels and refresh behavior: https://snapcraft.io/docs/channels
