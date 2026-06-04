@@ -1,7 +1,7 @@
 {
   "id": "system.limax.local",
   "name": "Limax",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "author": "Shellex",
   "description": "The local-first Shellex package manager for vault apps, repo registries, package trust records and updates.",
   "repository": "https://github.com/elmirok/shellex-limax",

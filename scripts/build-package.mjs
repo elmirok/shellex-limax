@@ -14,10 +14,18 @@ if (!manifest.entry || typeof manifest.entry !== 'string') {
   throw new Error('manifest.json must define a string entry file.');
 }
 
-const packageFiles = [manifest.entry];
+const declaredFiles = await readJson('package.files.json');
+if (!Array.isArray(declaredFiles)) {
+  throw new Error('package.files.json must be an array of package file paths.');
+}
+
+const packageFiles = [...new Set([manifest.entry, ...declaredFiles])];
 const files = {};
 
 for (const filePath of packageFiles) {
+  if (typeof filePath !== 'string' || !filePath || filePath.startsWith('/') || filePath.includes('..')) {
+    throw new Error(`Invalid package file path: ${String(filePath)}`);
+  }
   files[filePath] = await readFile(join(rootDir, filePath), 'utf8');
 }
 

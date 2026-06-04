@@ -32,16 +32,31 @@ function sameJson(left, right) {
 }
 
 const manifest = await readJson('manifest.json');
+const declaredFiles = await readJson('package.files.json');
 const packageRaw = await readText('package.sapp.json');
 const packageData = await readJson('package.sapp.json');
 const entryFile = typeof manifest.entry === 'string' ? manifest.entry : '';
 const entryContents = entryFile ? await readText(entryFile) : '';
+const packageFiles = Array.isArray(declaredFiles) ? [...new Set([entryFile, ...declaredFiles])] : [];
+const expectedFiles = {};
+
+for (const filePath of packageFiles) {
+  if (typeof filePath === 'string' && filePath && !filePath.startsWith('/') && !filePath.includes('..')) {
+    expectedFiles[filePath] = await readText(filePath);
+  }
+}
 
 check(typeof manifest.id === 'string' && manifest.id.length > 0, 'manifest id is present');
 check(typeof manifest.name === 'string' && manifest.name.length > 0, 'manifest name is present');
 check(typeof manifest.version === 'string' && manifest.version.length > 0, 'manifest version is present');
 check(typeof manifest.entry === 'string' && manifest.entry.length > 0, 'manifest entry is present');
 check(Array.isArray(manifest.permissions), 'manifest permissions is an array');
+check(Array.isArray(declaredFiles), 'package.files.json is an array');
+check(packageFiles.includes(entryFile), 'package file list includes the manifest entry');
+check(
+  packageFiles.every((filePath) => typeof filePath === 'string' && filePath && !filePath.startsWith('/') && !filePath.includes('..')),
+  'package file paths are relative and safe'
+);
 check(packageData && typeof packageData === 'object', 'package root is an object');
 check(sameJson(packageData.manifest, manifest), 'package manifest matches manifest.json');
 check(
@@ -56,12 +71,11 @@ check(
   packageData.files?.[entryFile] === entryContents,
   'embedded entry file matches the local file'
 );
+check(sameJson(packageData.files, expectedFiles), 'embedded package files match package.files.json');
 
 const expectedPackage = {
   manifest,
-  files: {
-    [entryFile]: entryContents
-  }
+  files: expectedFiles
 };
 
 check(
